@@ -1,0 +1,6 @@
+.stack-work/
+*~
+.vscode/
+*.hp
+*.prof
+*.svg

@@ -1,0 +1,47 @@
+name:                reply
+synopsis:            Reply is readline on steroids based on the terminal library.
+version:             0.1.0.0
+github:              "lpeterse/haskell-reply"
+license:             BSD3
+author:              "Lars Petersen"
+maintainer:          "info@lars-petersen.net"
+copyright:           "2018 Lars Petersen"
+
+extra-source-files:
+- README.md
+- CHANGELOG.md
+
+description:         Please see the README on Github at <https://github.com/lpeterse/haskell-reply#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- async
+- bytestring
+- exceptions
+- stm
+- text
+- transformers
+- prettyprinter
+- terminal
+
+library:
+  ghc-options: -Werror -O2 -fwarn-incomplete-patterns
+  exposed-modules:
+    - Control.Monad.Reply
+    - Control.Monad.Reply.IO
+  other-modules:
+  source-dirs: src
+
+executables:
+  repl-demo:
+    main:                Main.hs
+    source-dirs:         app/reply-demo
+    ghc-options:
+    - -O2
+    - -Werror
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - async
+    - terminal
