@@ -23,6 +23,7 @@ dependencies:
 - transformers
 - prettyprinter
 - terminal
+- megaparsec
 
 library:
   ghc-options: -Werror -O2 -fwarn-incomplete-patterns
@@ -30,10 +31,11 @@ library:
     - Control.Monad.Reply
     - Control.Monad.Reply.IO
   other-modules:
+    - Control.Monad.Reply.ReplyT
   source-dirs: src
 
 executables:
-  repl-demo:
+  reply-demo:
     main:                Main.hs
     source-dirs:         app/reply-demo
     ghc-options:
@@ -45,3 +47,4 @@ executables:
     dependencies:
     - async
     - terminal
+    - reply

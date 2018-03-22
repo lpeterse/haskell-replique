@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Control.Monad.Repl.IO where
+module Control.Monad.Reply.IO where
 
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM.TVar
