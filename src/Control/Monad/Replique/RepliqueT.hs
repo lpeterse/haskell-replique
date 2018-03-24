@@ -9,7 +9,7 @@ module Control.Monad.Replique.RepliqueT (
   , runRepliqueT
   ) where
 
-import qualified Control.Exception         as E
+import qualified Control.Exception            as E
 import           Control.Monad
 import           Control.Monad.Catch
 import           Control.Monad.Fail
@@ -17,32 +17,35 @@ import           Control.Monad.IO.Class
 import           Data.Char
 import           Data.IORef
 import           Data.Maybe
+import qualified Data.Text                    as T
 import           Data.Text.Prettyprint.Doc
 import           Data.Typeable
 
 import           Control.Monad.Terminal
-import qualified Control.Monad.Terminal    as T
+import qualified Control.Monad.Terminal       as T
+
+import           Control.Monad.Replique.Monad
 
 newtype Failure = Failure String
   deriving (Eq, Ord, Show, Typeable)
 
 instance E.Exception Failure
 
-class (Monad m) => MonadQuit m where
-  quit :: m a
+data RepliqueState s
+  = RepliqueState
+  { repliqueHistory   :: [T.Text]
+  , repliqueUserState :: s
+  }
 
-class (Monad m) => MonadStateful m where
-  type State m
-  load         :: m (State m)
-  store        :: State m -> m ()
-
-newtype RepliqueT s m a = RepliqueT { unRepliqueT :: (Either E.SomeException a -> s -> m s) -> s -> m s }
----------------------------------------------------- continuation ---------------- result ---
+newtype RepliqueT s m a
+  = RepliqueT { unRepliqueT :: (Either E.SomeException a -> RepliqueState s -> m (RepliqueState s)) -- continuation
+                            -> RepliqueState s -> m (RepliqueState s) }                             -- result
 
 runRepliqueT  :: (MonadColorPrinter m) => RepliqueT s m a -> s -> m s
-runRepliqueT (RepliqueT m) = let foreverM = m (\r s-> processResult r >> foreverM s)
-                     in  foreverM
+runRepliqueT (RepliqueT m) ust =
+  let foreverM = m (\r s-> processResult r >> foreverM s) in repliqueUserState <$> foreverM rst
   where
+    rst = RepliqueState [] ust
     processResult (Right _) = pure ()
     processResult (Left e) = do
       putDocLn $ fromMaybe renderOtherException tryRenderFailure
@@ -197,5 +200,13 @@ instance (Monad m) => MonadQuit (RepliqueT s m) where
 
 instance (Monad m) => MonadStateful (RepliqueT s m) where
   type State (RepliqueT s m) = s
-  load = RepliqueT $ \cont s-> cont (Right s) s
-  store s = RepliqueT $ \cont _-> cont (Right ()) s
+  load = RepliqueT $ \cont s-> cont (Right $ repliqueUserState s) s
+  store x = RepliqueT $ \cont s-> cont (Right ()) s { repliqueUserState = x }
+
+instance (Monad m) => MonadHistory (RepliqueT s m) where
+  addToHistory t = RepliqueT $ \cont s-> cont (Right ()) s { repliqueHistory = f (repliqueHistory s) }
+    where
+      f history
+        | not (T.all isSpace t) = t : history
+        | otherwise             = history
+  searchHistory t = RepliqueT $ \cont s-> cont (Right $ repliqueHistory s) s

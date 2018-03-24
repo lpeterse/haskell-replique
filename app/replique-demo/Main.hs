@@ -28,10 +28,10 @@ main :: IO ()
 main = withTerminal (runTerminalT $ runRepliqueT repl 0) >>= Prelude.print
 
 prompt :: (MonadFormatPrinter m, MonadColorPrinter m) => Doc (Annotation m)
-prompt = annotate bold $ annotate (foreground $ bright Blue) "replique" <> "@terminal % "
+prompt = annotate bold $ annotate (foreground $ bright Blue) "replique" <> "@terminal %"
 
 repl :: (MonadTerminal m, MonadColorPrinter m, MonadMask m, MonadIO m) => RepliqueT Int m ()
-repl = readText prompt >>= \case
+repl = readLine prompt >>= \case
     ""           -> pure ()
     "quit"       -> quit
     "fail"       -> fail "abcdef"
@@ -53,4 +53,4 @@ repl = readText prompt >>= \case
     "colors"     -> undefined
     "normal"     -> useAlternateScreenBuffer False
     "alternate"  -> useAlternateScreenBuffer True
-    line         -> putStringLn (show (line :: T.Text))
+    line         -> putStringLn (show (line :: String))

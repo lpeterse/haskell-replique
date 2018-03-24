@@ -31,6 +31,7 @@ library:
     - Control.Monad.Replique
     - Control.Monad.Replique.IO
   other-modules:
+    - Control.Monad.Replique.Monad
     - Control.Monad.Replique.RepliqueT
   source-dirs: src
 

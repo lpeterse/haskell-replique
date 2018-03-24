@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 35ae0f3bb14d57fc60c5f2cadbbcec32a40f7c439c4762a62e446aee57962302
+-- hash: d2ee1e7bede3ca827c07b9e3a78a52d266f448ece7f4deb8c5de35b7f33fc894
 
 name:           replique
 version:        0.1.0.0
@@ -45,6 +45,7 @@ library
       Control.Monad.Replique
       Control.Monad.Replique.IO
   other-modules:
+      Control.Monad.Replique.Monad
       Control.Monad.Replique.RepliqueT
   default-language: Haskell2010
 
