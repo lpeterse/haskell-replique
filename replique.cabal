@@ -2,14 +2,14 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 82deb0d44125ecf9f44e63512d73fc18f1ce8c4be40131181512f35e5bbfc6fa
+-- hash: a7c6d4169db20f26a766445bc5e89d93c4ad0fa164d0cb1ae56521eb6639b517
 
-name:           reply
+name:           replique
 version:        0.1.0.0
-synopsis:       Reply is readline on steroids based on the terminal library.
-description:    Please see the README on Github at <https://github.com/lpeterse/haskell-reply#readme>
-homepage:       https://github.com/lpeterse/haskell-reply#readme
-bug-reports:    https://github.com/lpeterse/haskell-reply/issues
+synopsis:       Replique is readline on steroids based on the terminal library.
+description:    Please see the README on Github at <https://github.com/lpeterse/haskell-replique#readme>
+homepage:       https://github.com/lpeterse/haskell-replique#readme
+bug-reports:    https://github.com/lpeterse/haskell-replique/issues
 author:         Lars Petersen
 maintainer:     info@lars-petersen.net
 copyright:      2018 Lars Petersen
@@ -24,7 +24,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/lpeterse/haskell-reply
+  location: https://github.com/lpeterse/haskell-replique
 
 library
   hs-source-dirs:
@@ -42,16 +42,16 @@ library
     , text
     , transformers
   exposed-modules:
-      Control.Monad.Reply
-      Control.Monad.Reply.IO
+      Control.Monad.Replique
+      Control.Monad.Replique.IO
   other-modules:
-      Control.Monad.Reply.ReplyT
+      Control.Monad.Replique.RepliqueT
   default-language: Haskell2010
 
-executable reply-demo
+executable replique-demo
   main-is: Main.hs
   hs-source-dirs:
-      app/reply-demo
+      app/replique-demo
   ghc-options: -O2 -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       async
@@ -60,11 +60,11 @@ executable reply-demo
     , exceptions
     , megaparsec
     , prettyprinter
-    , reply
+    , replique
     , stm
     , terminal
     , text
     , transformers
   other-modules:
-      Paths_reply
+      Paths_replique
   default-language: Haskell2010

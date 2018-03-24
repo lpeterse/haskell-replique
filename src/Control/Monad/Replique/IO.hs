@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Control.Monad.Reply.IO where
+module Control.Monad.Replique.IO where
 
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM.TVar
@@ -30,7 +30,7 @@ runWithProgressBar action = do
         Just (Right a) -> renderProgress 1 >> pure (Just a)
         Just (Left  p) -> renderProgress p >> loop
     clearLine
-    setHorizontalCursorPosition 0
+    setCursorPositionHorizontal 0
     showCursor
     pure x
   where
@@ -49,7 +49,7 @@ runWithProgressBar action = do
             | x3 <   10 = "  " ++ show x3
             | x3 <  100 = " " ++ show x3
             | otherwise = "100"
-      setHorizontalCursorPosition 0
+      setCursorPositionHorizontal 0
       putString (padded ++ " % ")
       setAnnotation (foreground $ bright Black)
       putText (Text.replicate x1 "█")
@@ -66,7 +66,7 @@ runWithProgressBar action = do
       flush
     render color msg = do
       width <- getLineWidth
-      setHorizontalCursorPosition 0
+      setCursorPositionHorizontal 0
       putDoc $ PP.annotate (foreground $ bright color)
              $ PP.pretty $ msg <> Text.replicate (width - Text.length msg) " "
       flush

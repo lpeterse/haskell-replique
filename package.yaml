@@ -1,7 +1,7 @@
-name:                reply
-synopsis:            Reply is readline on steroids based on the terminal library.
+name:                replique
+synopsis:            Replique is readline on steroids based on the terminal library.
 version:             0.1.0.0
-github:              "lpeterse/haskell-reply"
+github:              "lpeterse/haskell-replique"
 license:             BSD3
 author:              "Lars Petersen"
 maintainer:          "info@lars-petersen.net"
@@ -11,7 +11,7 @@ extra-source-files:
 - README.md
 - CHANGELOG.md
 
-description:         Please see the README on Github at <https://github.com/lpeterse/haskell-reply#readme>
+description:         Please see the README on Github at <https://github.com/lpeterse/haskell-replique#readme>
 
 dependencies:
 - base >= 4.7 && < 5
@@ -28,16 +28,16 @@ dependencies:
 library:
   ghc-options: -Werror -O2 -fwarn-incomplete-patterns
   exposed-modules:
-    - Control.Monad.Reply
-    - Control.Monad.Reply.IO
+    - Control.Monad.Replique
+    - Control.Monad.Replique.IO
   other-modules:
-    - Control.Monad.Reply.ReplyT
+    - Control.Monad.Replique.RepliqueT
   source-dirs: src
 
 executables:
-  reply-demo:
+  replique-demo:
     main:                Main.hs
-    source-dirs:         app/reply-demo
+    source-dirs:         app/replique-demo
     ghc-options:
     - -O2
     - -Werror
@@ -47,4 +47,4 @@ executables:
     dependencies:
     - async
     - terminal
-    - reply
+    - replique
