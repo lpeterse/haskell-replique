@@ -1,5 +1,5 @@
 name:                replique
-synopsis:            Replique is readline on steroids based on the terminal library.
+synopsis:            Replique is a high-level REPL library for building command line interfaces.
 version:             0.1.0.0
 github:              "lpeterse/haskell-replique"
 license:             BSD3

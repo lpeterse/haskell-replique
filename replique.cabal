@@ -2,11 +2,11 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a7c6d4169db20f26a766445bc5e89d93c4ad0fa164d0cb1ae56521eb6639b517
+-- hash: 35ae0f3bb14d57fc60c5f2cadbbcec32a40f7c439c4762a62e446aee57962302
 
 name:           replique
 version:        0.1.0.0
-synopsis:       Replique is readline on steroids based on the terminal library.
+synopsis:       Replique is a high-level REPL library for building command line interfaces.
 description:    Please see the README on Github at <https://github.com/lpeterse/haskell-replique#readme>
 homepage:       https://github.com/lpeterse/haskell-replique#readme
 bug-reports:    https://github.com/lpeterse/haskell-replique/issues

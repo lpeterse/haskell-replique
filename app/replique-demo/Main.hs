@@ -31,7 +31,7 @@ prompt :: (MonadFormatPrinter m, MonadColorPrinter m) => Doc (Annotation m)
 prompt = annotate bold $ annotate (foreground $ bright Blue) "replique" <> "@terminal % "
 
 repl :: (MonadTerminal m, MonadColorPrinter m, MonadMask m, MonadIO m) => RepliqueT Int m ()
-repl = readLine prompt >>= \case
+repl = readText prompt >>= \case
     ""           -> pure ()
     "quit"       -> quit
     "fail"       -> fail "abcdef"
