@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d2ee1e7bede3ca827c07b9e3a78a52d266f448ece7f4deb8c5de35b7f33fc894
+-- hash: 69b6e2e6d01c2727a3b62f0167a604da4c44aafe222089ea7145b27daabf965b
 
 name:           replique
 version:        0.1.0.0
@@ -67,5 +67,34 @@ executable replique-demo
     , text
     , transformers
   other-modules:
+      Paths_replique
+  default-language: Haskell2010
+
+test-suite terminal-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      src
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      async
+    , base >=4.7 && <5
+    , bytestring
+    , exceptions
+    , megaparsec
+    , prettyprinter
+    , stm
+    , tasty
+    , tasty-hunit
+    , tasty-quickcheck
+    , terminal
+    , text
+    , transformers
+  other-modules:
+      Control.Monad.Replique
+      Control.Monad.Replique.IO
+      Control.Monad.Replique.Monad
+      Control.Monad.Replique.RepliqueT
       Paths_replique
   default-language: Haskell2010
