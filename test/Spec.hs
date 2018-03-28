@@ -142,3 +142,67 @@ traceReplique input expectedOutput sz cp (TraceReplique ma) = do
   expectedOutput @=? output st'
   where
     st = TraceRepliqueState input [] sz cp
+
+
+data Screen
+  = Screen
+  { screenWidth     :: Int
+  , screenHeight    :: Int
+  , screenCursorRow :: Int
+  , screenCursorCol :: Int
+  , screenLines     :: [String]
+  } deriving (Eq, Ord, Show)
+
+sPutChar :: Char -> Screen -> Screen
+sPutChar x s = s {
+    screenCursorRow = cursorRow'
+  , screenCursorCol = cursorCol'
+  , screenLines     = lines'
+  }
+  where
+    cursorCol'
+      | eol       = 0
+      | otherwise = screenCursorCol s + 1
+    cursorRow'
+      | eos       = screenCursorRow s
+      | eol       = screenCursorRow s + 1
+      | otherwise = screenCursorRow s
+    eol = screenCursorCol s + 1 == screenWidth s
+    eos = eol && screenCursorRow s + 1 == screenHeight s
+    lines'
+      | eos       = set $ tail (screenLines s)
+      | otherwise = set $ screenLines s
+    set ls = setRow ls (screenCursorRow s) (screenCursorCol s)
+      where
+        setRow []     0 c = [ setCol "" c ]
+        setRow (l:ls) 0 c = setCol  l c : ls
+        setRow []     r c = "" : setRow ls (r - 1) c
+        setRow (l:ls) r c =  l : setRow ls (r - 1) c
+        setCol ""       0 = [ x ]
+        setCol (y:ys)   0 = x : ys
+        setCol ""       c = ' ' : setCol "" (c - 1)
+        setCol (y:ys)   c =   y : setCol ys (c - 1)
+
+sSetCursorPosition :: (Int,Int) -> Screen -> Screen
+sSetCursorPosition (row,col) s
+  | row < 0 || row >= screenHeight s = error "out of bounds"
+  | col < 0 || col >= screenWidth  s = error "out of bounds"
+  | otherwise = s { screenCursorRow = row, screenCursorCol = col }
+
+sClearLine :: Screen -> Screen
+sClearLine  = s { screenLines = lines' }
+  where
+    lines' = f (screenCursorRow s) (screenLines s)
+    f 0 []     = []
+    f 0 (l:ls) = "" : ls
+    f r []     = "" : f (r - 1) []
+    f r (l:ls) =  l : f (r - 1) ls
+
+sClearScreenBelow :: Screen -> Screen
+sClearScreenBelow  = s { screenLines = lines' }
+  where
+    lines' = f (screenCursorRow s) (screenLines s)
+    f 0 []     = []
+    f 0 (l:ls) = [l]
+    f r []     = []
+    f r (l:ls) = l : f (r - 1) ls
