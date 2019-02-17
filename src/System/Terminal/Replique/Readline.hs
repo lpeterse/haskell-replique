@@ -1,28 +1,93 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 module System.Terminal.Replique.Readline where
 
-import qualified Control.Exception                as E
 import           Control.Monad
-import           Control.Monad.Catch
-import           Control.Monad.Fail
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.State
-import           System.Terminal
-import           Data.Proxy
+import           Control.Monad.State
 import           Data.Char
-import qualified Data.List.NonEmpty               as NE
 import           Data.Maybe
-import           Data.Proxy
 import qualified Data.Text                        as T
 import           Data.Text.Prettyprint.Doc    hiding (width)
 import           Prelude                      hiding (putChar)
 
 import           System.Terminal
 import           System.Terminal.Replique.Monad
-import           System.Terminal.Replique.Image
 import           System.Terminal.Replique.Readable
-import           System.Terminal.Replique.RepliqueT
+
+readLine :: (MonadReplique m, Readable a) => Doc (Attribute m) -> m (Maybe a)
+readLine prompt = do
+    window <- getWindowSize
+    cursor <- do
+        pos <- getCursorPosition
+        if col pos == 0
+            then pure pos
+            else putLn >> pure (Position (row pos + 1) 0)
+    evalStateT (putReadLineState >> run) ReadLineState
+        { rlWindow        = window
+        , rlPosition      = cursor
+        , rlPrompt        = layoutSmart defaultLayoutOptions (prompt <> space)
+        , rlInputString   = ""
+        , rlInputCursor   = 0
+        }
+
+run :: (MonadReplique m, Readable a) => StateT (ReadLineState m) m (Maybe a)
+run = lift awaitEvent >>= \case
+    Left Interrupt -> lift interrupt
+    Right ev -> case ev of
+        KeyEvent EnterKey _ -> quit
+        KeyEvent (CharKey c) mods
+            | c == 'A' && mods == ctrlKey -> do
+                moveToLineBegin
+                run
+            | c == 'E' && mods == ctrlKey -> do
+                moveToLineEnd
+                run
+            | c == 'D' && mods == ctrlKey -> do
+                quitWith Nothing
+            | c == 'L' && mods == ctrlKey -> do
+                clear
+                run
+            | mods == mempty -> do
+                insertChar c
+                run
+            | otherwise -> do
+                run
+        KeyEvent DeleteKey _ -> do
+            delete
+            run
+        KeyEvent BackspaceKey _ -> do
+            deleteBackward
+            run
+        KeyEvent (ArrowKey Leftwards) mods
+            | mods == ctrlKey -> do 
+                moveLeftWord
+                run
+            | otherwise       -> do
+                moveLeft
+                run
+        KeyEvent (ArrowKey Rightwards) mods
+            | mods == ctrlKey -> do
+                moveRightWord
+                run
+            | otherwise -> do
+                moveRight
+                run
+        _ -> run
+    where
+        quit = do
+            st <- get
+            case readText (T.pack $ rlInputString st) of
+                Left failure -> undefined -- FIXME
+                Right result -> quitWith (Just result)
+        quitWith result = do
+            st <- get
+            lift do 
+                setCursorPosition (rlInputEndPosition st)
+                putLn
+                flush
+            pure result
+
+---------------------------------------------------------------------------------------------------
+-- READLINE STATE
+---------------------------------------------------------------------------------------------------
 
 data ReadLineState m
     = ReadLineState 
@@ -44,28 +109,18 @@ rlInputEndPosition :: ReadLineState m -> Position
 rlInputEndPosition st = posInputEnd
     where
         size            = rlWindow st
-        pos             = rlPosition st
         posInputBegin   = rlInputBeginPosition st
         posInputEnd     = posPlus size posInputBegin $ length $ rlInputString st
 
-putReadLineStateDiff :: MonadTerminal m => ReadLineState m -> ReadLineState m -> m (ReadLineState m)
-putReadLineStateDiff oldSt newSt = putReadLineState newSt -- TODO
+putReadLineStateDiff :: MonadTerminal m => ReadLineState m -> StateT (ReadLineState m) m ()
+putReadLineStateDiff newSt = do
+    put newSt
+    putReadLineState -- TODO
 
-putReadLineState :: MonadTerminal m => ReadLineState m -> m (ReadLineState m)
-putReadLineState st = do
-    hideCursor
-    setCursorPosition pos
-    eraseInLine EraseAll
-    eraseInDisplay EraseForward
-    putSimpleDocStream (rlPrompt st)
-    putString (rlInputString st)
-    putChar ' ' -- overcome auto-wrap lazyness
-    showCursor
-    flush
-    setCursorPosition posInputCursor'
-    pure st { rlPosition = pos' }
-    where
-        size            = rlWindow st
+putReadLineState :: MonadTerminal m => StateT (ReadLineState m) m ()
+putReadLineState = do
+    st <- get
+    let size            = rlWindow st
         pos             = rlPosition st
         posInputStart   = posPlusSimpleDocStream size pos (rlPrompt st)
         posInputEnd     = posPlus size posInputStart (length $ rlInputString st)
@@ -77,112 +132,71 @@ putReadLineState st = do
         posInputCursor'
             | scrolled  = posPlusRows size posInputCursor (-1)
             | otherwise = posInputCursor
+    lift do
+        hideCursor
+        setCursorPosition pos
+        eraseInLine EraseAll
+        eraseInDisplay EraseForward
+        putSimpleDocStream (rlPrompt st)
+        putString (rlInputString st)
+        putChar ' ' -- overcome auto-wrap laziness
+        showCursor
+        setCursorPosition posInputCursor'
+        flush
+    put st { rlPosition = pos' }
 
-readLine :: forall m a. (MonadReplique m, Readable a) => Doc (Attribute m) -> m (Maybe a)
-readLine prompt = do
-    window <- getWindowSize
-    cursor <- do
-        pos <- getCursorPosition
-        if col pos == 0
-            then pure pos
-            else putLn >> pure (Position (row pos + 1) 0)
-    continue ReadLineState
-        { rlWindow        = window
-        , rlPosition      = cursor
-        , rlPrompt        = layoutSmart defaultLayoutOptions (prompt <> space)
-        , rlInputString   = ""
-        , rlInputCursor   = 0
+clear :: MonadTerminal m => StateT (ReadLineState m) m ()
+clear = do
+    st <- get
+    putReadLineStateDiff st
+        { rlPosition = Position 0 0
         }
-    where
-        prompt' = prompt <> space
-        continue st = do
-            st' <- putReadLineState st
-            flush
-            run st'
-        quitWith st result = do
-            setCursorPosition (rlInputEndPosition st)
-            putLn
-            flush
-            pure result
-        run st = awaitEvent >>= \case
-            Left Interrupt -> interrupt
-            Right ev -> case ev of
-                KeyEvent EnterKey _ ->
-                    case readText (T.pack $ rlInputString st) of
-                        Left failure -> undefined -- FIXME
-                        Right result -> quitWith st (Just result)
-                KeyEvent (CharKey c) mods
-                    | c == 'A' && mods == ctrlKey ->
-                        continue (moveToLineBegin st)
-                    | c == 'E' && mods == ctrlKey ->
-                        continue (moveToLineEnd st)
-                    | c == 'D' && mods == ctrlKey ->
-                        quitWith st Nothing
-                    | c == 'L' && mods == ctrlKey ->
-                        continue (clear st)
-                    | mods == mempty ->
-                        continue (insertChar c st)
-                    | otherwise -> do
-                        continue st
-                KeyEvent DeleteKey _
-                    -> continue (delete st)
-                KeyEvent BackspaceKey _
-                    -> continue (deleteBackward st)
-                KeyEvent (ArrowKey Leftwards) mods
-                    | mods == ctrlKey -> continue (moveLeftWord st)
-                    | otherwise       -> continue (moveLeft st)
-                KeyEvent (ArrowKey Rightwards) mods
-                    | mods == ctrlKey -> continue (moveRightWord st)
-                    | otherwise       -> continue (moveRight st)
-                _ -> continue st
 
-clear :: ReadLineState m -> ReadLineState m
-clear st = st
-    { rlPosition = Position 0 0
-    }
-
-insertChar :: Char -> ReadLineState m -> ReadLineState m
-insertChar c st = st
-    { rlInputString = insertAt c (rlInputCursor st) (rlInputString st)
-    , rlInputCursor = rlInputCursor st + 1
-    }
-    where
+insertChar :: MonadTerminal m => Char -> StateT (ReadLineState m) m ()
+insertChar c = do
+    st <- get
+    let insertAt :: Char -> Int -> String -> String
         insertAt x 0 ys     = x : ys
         insertAt x _ []     = []
         insertAt x i (y:ys) = y : insertAt x (i - 1) ys
-
-delete :: ReadLineState m -> ReadLineState m
-delete st = st
-    { rlInputString = deleteAt (rlInputCursor st) (rlInputString st)
-    }
-    where
-        deleteAt _     [] = []
-        deleteAt 0 (_:xs) = xs
-        deleteAt i (x:xs) = x : deleteAt (i - 1) xs 
-
-deleteBackward :: ReadLineState m -> ReadLineState m
-deleteBackward st 
-    | rlInputCursor st == 0 = st
-    | otherwise = st
-        { rlInputString = deleteAt (rlInputCursor st - 1) (rlInputString st)
-        , rlInputCursor = rlInputCursor st - 1
+    putReadLineStateDiff st
+        { rlInputString = insertAt c (rlInputCursor st) (rlInputString st)
+        , rlInputCursor = rlInputCursor st + 1
         }
-    where
-        deleteAt _     [] = []
+
+delete ::  MonadTerminal m => StateT (ReadLineState m) m ()
+delete = do
+    st <- get
+    let deleteAt _     [] = []
+        deleteAt 0 (_:xs) = xs
+        deleteAt i (x:xs) = x : deleteAt (i - 1) xs
+    putReadLineStateDiff st
+        { rlInputString = deleteAt (rlInputCursor st) (rlInputString st)
+        } 
+
+deleteBackward :: MonadTerminal m => StateT (ReadLineState m) m ()
+deleteBackward = do
+    st <- get
+    let deleteAt _     [] = []
+        deleteAt (-1) xs  = xs
         deleteAt 0 (_:xs) = xs
         deleteAt i (x:xs) = x : deleteAt (i - 1) xs 
+    putReadLineStateDiff st
+        { rlInputString = deleteAt (rlInputCursor st - 1) (rlInputString st)
+        , rlInputCursor = max 0 (rlInputCursor st - 1)
+        }
 
-moveLeft :: ReadLineState m -> ReadLineState m
-moveLeft st = st
-    { rlInputCursor = max 0 (rlInputCursor st - 1)
-    }
+moveLeft :: MonadTerminal m => StateT (ReadLineState m) m ()
+moveLeft = do
+    st <- get
+    putReadLineStateDiff st
+        { rlInputCursor = max 0 (rlInputCursor st - 1)
+        }
 
-moveLeftWord :: ReadLineState m -> ReadLineState m
-moveLeftWord st = st
-    { rlInputCursor = f 0 0 (rlInputString st)
-    }
-    where
-        c = rlInputCursor st
+moveLeftWord :: MonadTerminal m => StateT (ReadLineState m) m ()
+moveLeftWord = do
+    st <- get
+    let c = rlInputCursor st
         f _ l []         = l
         f i l (' ':x:xs)
             | i + 1 >= c = l
@@ -191,18 +205,21 @@ moveLeftWord st = st
         f i l (x:xs)
             | i >= c     = l
             | otherwise  = f (i + 1)  l      xs
+    putReadLineStateDiff st
+        { rlInputCursor = f 0 0 (rlInputString st)
+        }
 
-moveRight :: ReadLineState m -> ReadLineState m
-moveRight st = st
-    { rlInputCursor = min (rlInputCursor st + 1) (length (rlInputString st))
-    }
+moveRight :: MonadTerminal m => StateT (ReadLineState m) m ()
+moveRight = do
+    st <- get
+    putReadLineStateDiff st
+        { rlInputCursor = min (rlInputCursor st + 1) (length (rlInputString st))
+        }
 
-moveRightWord :: ReadLineState m -> ReadLineState m
-moveRightWord st = st
-    { rlInputCursor = f c (drop c xs)
-    }
-    where
-        c  = rlInputCursor st
+moveRightWord :: MonadTerminal m => StateT (ReadLineState m) m ()
+moveRightWord = do
+    st <- get
+    let c  = rlInputCursor st
         xs = rlInputString st
         f c [] = c
         f c (x:xs)
@@ -212,16 +229,23 @@ moveRightWord st = st
         g c (x:xs)
             | x == ' '  = g (c + 1) xs
             | otherwise = c
+    putReadLineStateDiff st
+        { rlInputCursor = f c (drop c xs)
+        }
 
-moveToLineBegin :: ReadLineState m -> ReadLineState m
-moveToLineBegin st = st
-    { rlInputCursor = 0
-    }
+moveToLineBegin :: MonadTerminal m => StateT (ReadLineState m) m ()
+moveToLineBegin = do
+    st <- get
+    putReadLineStateDiff st
+        { rlInputCursor = 0
+        }
 
-moveToLineEnd :: ReadLineState m -> ReadLineState m
-moveToLineEnd st = st
-    { rlInputCursor = length (rlInputString st)
-    }
+moveToLineEnd :: MonadTerminal m => StateT (ReadLineState m) m ()
+moveToLineEnd = do
+    st <- get
+    putReadLineStateDiff st
+        { rlInputCursor = length (rlInputString st)
+        }
 
 ---------------------------------------------------------------------------------------------------
 -- POSITION CALCULATIONS

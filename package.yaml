@@ -38,7 +38,6 @@ library:
   ghc-options: -Wall -fwarn-incomplete-patterns
   exposed-modules:
     - System.Terminal.Replique
-    - System.Terminal.Replique.Image
     - System.Terminal.Replique.Monad
     - System.Terminal.Replique.Readable
     - System.Terminal.Replique.Readline

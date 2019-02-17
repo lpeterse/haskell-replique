@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 61d4969255fe4b8afb4d3f1d5c71e9ccdadc66d529d2c27c1cd4ab94782b2436
+-- hash: 72e82192a386be2bafe2f572a12013cafa7527958628e45f6dcafdd31845a869
 
 name:           replique
 version:        0.1.0.0
@@ -28,7 +28,6 @@ source-repository head
 library
   exposed-modules:
       System.Terminal.Replique
-      System.Terminal.Replique.Image
       System.Terminal.Replique.Monad
       System.Terminal.Replique.Readable
       System.Terminal.Replique.Readline
