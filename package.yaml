@@ -1,5 +1,5 @@
 name:                replique
-synopsis:            Replique is a high-level REPL library for building command line interfaces.
+synopsis:            Replique is a high-level REPL library for building command line interfaces
 version:             0.1.0.0
 github:              "lpeterse/haskell-replique"
 license:             BSD3
@@ -16,23 +16,34 @@ description:         Please see the README on Github at <https://github.com/lpet
 dependencies:
 - base >= 4.7 && < 5
 - async
-- bytestring
 - exceptions
+- mtl
+- prettyprinter
 - stm
+- terminal
 - text
 - transformers
-- prettyprinter
-- terminal
-- megaparsec
+
+default-extensions:
+- LambdaCase
+- MultiWayIf
+- BlockArguments
+- OverloadedStrings
+- GeneralizedNewtypeDeriving
+- TypeFamilies
+- FlexibleContexts
+- FlexibleInstances
 
 library:
-  ghc-options: -Werror -O2 -fwarn-incomplete-patterns
+  ghc-options: -Wall -fwarn-incomplete-patterns
   exposed-modules:
-    - Control.Monad.Replique
-    - Control.Monad.Replique.IO
-  other-modules:
-    - Control.Monad.Replique.Monad
-    - Control.Monad.Replique.RepliqueT
+    - System.Terminal.Replique
+    - System.Terminal.Replique.Image
+    - System.Terminal.Replique.Monad
+    - System.Terminal.Replique.Readable
+    - System.Terminal.Replique.Readline
+    - System.Terminal.Replique.RepliqueT
+    - System.Terminal.Replique.TextEdit
   source-dirs: src
 
 executables:
@@ -51,10 +62,9 @@ executables:
     - replique
 
 tests:
-  terminal-test:
+  replique-tests:
     main:                Spec.hs
     source-dirs:
-    - src
     - test
     ghc-options:
     - -threaded
@@ -62,7 +72,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - terminal
+    - replique
     - tasty
     - tasty-hunit
     - tasty-quickcheck
-

@@ -1,4 +1,5 @@
-resolver: lts-10.3
+resolver: lts-13.4
 packages:
 - .
-- ../haskell-terminal
+extra-deps:
+- terminal-0.2.0.0

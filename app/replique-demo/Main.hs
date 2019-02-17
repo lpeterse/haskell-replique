@@ -1,6 +1,3 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies      #-}
 module Main where
 
 import           Control.Concurrent
@@ -11,46 +8,53 @@ import           Control.Monad
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class
 import           Control.Monad.STM
+import           Control.Monad.State.Class
+import           Control.Monad.Trans.Class
 import           Data.Char
 import           Data.Function               (fix)
 import qualified Data.Text                   as T
 import qualified Data.Text                   as Text
 import qualified Data.Text.Prettyprint.Doc   as PP
-
-import           Control.Monad.Replique
-import           Control.Monad.Replique.IO
-import           Control.Monad.Terminal
-import           Data.Text.Prettyprint.Doc
 import qualified System.IO.Error             as E
+
 import           System.Terminal
+import           System.Terminal.Replique
+import           Data.Text.Prettyprint.Doc
 
 main :: IO ()
-main = withTerminal (runTerminalT $ runRepliqueT repl 0) >>= Prelude.print
+main = runReplique (255 :: Int) $ handleExit $ readLine prompt >>= \case
+    Nothing      -> exitWith ExitSuccess
+    Just line    -> case line of
+        ""           -> pure ()
+        "exit"       -> exitWith ExitSuccess
+        "exitWith"   -> exitWith $ ExitFailure 123
+        "fail"       -> fail "abcdef"
+        "failIO"     -> liftIO $ E.throwIO $ E.userError "Exception thrown in IO."
+        "throwM"     -> throwM $ E.userError "Exception thrown in RepliqueT."
+        "liftThrowM" -> lift $ throwM $ E.userError "Exception thrown within the monad transformer."
+        "load"       -> get >>= putStringLn . show
+        "inc"        -> get >>= put . succ
+        "dec"        -> get >>= put . pred
+       {- "loop"       -> readLine "Integer: " >>= \case
+            Nothing -> pure ()
+            Just i  -> forM_ [1..(i :: Int)] $ \j-> put j >> putString (' ':show j)
+        "move"       -> readLine "Integer: " >>= \case
+            Nothing -> pure ()
+            Just i  -> moveCursorForward i >> flush >> liftIO (threadDelay 3000000) -}
+        "finally"    -> fail "I am failing, I am failing.." `finally` putStringLn "FINALLY"
+        "clear"      -> eraseInDisplay EraseAll
+        "window"     -> getWindowSize >>= \p-> putStringLn (show p) >> flush
+        "cursor"     -> getCursorPosition >>= \p-> putStringLn (show p) >> flush
+        "home"       -> setCursorPosition $ Position 0 0
+        "undefined"  -> undefined
+        "normal"     -> setAlternateScreenBuffer False
+        "alternate"  -> setAlternateScreenBuffer True
+        _            -> putStringLn (show (line :: String))
 
-prompt :: (MonadFormatPrinter m, MonadColorPrinter m) => Doc (Annotation m)
-prompt = annotate bold $ annotate (foreground $ bright Blue) "replique" <> "@terminal %"
+prompt :: (MonadFormattingPrinter m, MonadColorPrinter m) => Doc (Attribute m)
+prompt = annotate bold (annotate (foreground $ bright blue) "demo") <> "@replique %"
 
-repl :: (MonadTerminal m, MonadColorPrinter m, MonadMask m, MonadIO m) => RepliqueT Int m ()
-repl = readLine prompt >>= \case
-    ""           -> pure ()
-    "quit"       -> quit
-    "fail"       -> fail "abcdef"
-    "failIO"     -> liftIO $ E.throwIO $ E.userError "Exception thrown in IO."
-    "throwM"     -> throwM $ E.userError "Exception thrown in RepliqueT."
-    "liftThrowM" -> lift $ throwM $ E.userError "Exception thrown within the monad transformer."
-    "load"       -> load >>= pprint
-    "inc"        -> load >>= store . succ
-    "dec"        -> load >>= store . pred
-    "loop"       -> forM_ [1..100000] $ \i-> store i >> putString (' ':show i)
-    "finally"    -> fail "I am failing, I am failing.." `finally` putStringLn "FINALLY"
-    "clear"      -> clearScreen
-    "screen"     -> getScreenSize >>= \p-> putStringLn (show p) >> flush
-    "cursor"     -> getCursorPosition >>= \p-> putStringLn (show p) >> flush
-    "home"       -> setCursorPosition (0,0)
-    "progress"   -> void $ runWithProgressBar $ \update-> (`finally` threadDelay 3000000) $ forM_ [1..1000] $ \i-> do
-                      threadDelay 10000
-                      update $ fromIntegral i / 1000
-    "colors"     -> undefined
-    "normal"     -> useAlternateScreenBuffer False
-    "alternate"  -> useAlternateScreenBuffer True
-    line         -> putStringLn (show (line :: String))
+handleExit :: (MonadExit m, MonadColorPrinter m, ExitStatus m ~ ExitCode) => m () -> m ()
+handleExit ma = ma `catchExit` \e -> do
+    putDocLn $ annotate (foreground yellow) (pretty $ show e)
+    exitWith e
