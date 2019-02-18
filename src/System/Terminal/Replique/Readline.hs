@@ -11,6 +11,7 @@ import           Prelude                      hiding (putChar)
 import           System.Terminal
 import           System.Terminal.Replique.Monad
 import           System.Terminal.Replique.Readable
+import           System.Terminal.Replique.TextEdit
 
 readLine :: (MonadReplique m, Readable a) => Doc (Attribute m) -> m (Maybe a)
 readLine prompt = do
@@ -243,43 +244,36 @@ moveToLineEnd = do
 putReadLineState :: MonadTerminal m => StateT (ReadLineState m) m ()
 putReadLineState = do
     st <- get
-    let size            = rlWindow st
-        pos             = rlPosition st
-        posInputStart   = posPlusSimpleDocStream size pos (rlPrompt st)
-        posInputEnd     = posPlus size posInputStart (length $ rlInputString st)
-        posInputCursor  = posPlus size posInputStart (rlInputCursor st)
-        scrolled        = height size <= row posInputEnd
-        pos'
-            | scrolled  = posPlusRows size pos (-1)
-            | otherwise = pos
-        posInputCursor'
-            | scrolled  = posPlusRows size posInputCursor (-1)
-            | otherwise = posInputCursor
-        {-input           = rlInputString st
-        cursor          = rlInputCursor st
-        -- Available cells from home position (if prompt would scroll)
-        inputPosHome    = posPlusSimpleDocStream size (Position 0 0) (rlPrompt st)
-        inputAvailable  = (height size - row inputPosHome) * width size - col inputPosHome
-        (inputRendered, cursorRendered)
-            | input < inputAvailable = (input, cursor)
-            | otherwise              = (take m $ drop n input, cursor - n)
-            where
-                -- ____________ABCDEF_HIJKLMN___________
-                --      m     |      n      |
-                l = length input
-                m = min (l - inputAvailable) (cursor - (inputAvailable `div` 2)) -}
+    let size             = rlWindow st
+        pos              = rlPosition st
+        -- The prompt may scroll up to the topmost row.
+        -- The input string is eventually truncated if it doesn't fit into the
+        -- available space.
+        inputPosHome     = posPlusSimpleDocStream size (Position 0 0) (rlPrompt st)
+        inputAvailable   = (height size - row inputPosHome) * width size - col inputPosHome - 1
+        (inputS, inputC) = render inputAvailable (rlInputString st, rlInputCursor st)
+        -- Positions before and after printing input.
+        posInputStart    = posPlusSimpleDocStream size pos (rlPrompt st)
+        posInputEnd      = posPlus size posInputStart (length inputS + 1)
+        posInputCursor   = posPlus size posInputStart inputC
+        linesScrolled    = max 0 (row posInputEnd - height size - 1)
+        pos'             = pos            `scroll` linesScrolled
+        posInputCursor'  = posInputCursor `scroll` linesScrolled
     lift do
+        flush
         hideCursor
         setCursorPosition pos
         eraseInLine EraseAll
         eraseInDisplay EraseForward
         putSimpleDocStream (rlPrompt st)
-        putString (rlInputString st)
+        putString inputS
         putChar ' ' -- overcome auto-wrap laziness
         showCursor
         setCursorPosition posInputCursor'
         flush
     put st { rlPosition = pos' }
+    where
+        scroll (Position r c) i = Position (max 0 (r - i)) c
 
 putReadLineStateDiff :: (MonadTerminal m) => ReadLineState m -> StateT (ReadLineState m) m ()
 putReadLineStateDiff = \st1 -> get >>= \st0 -> do
