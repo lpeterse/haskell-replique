@@ -21,7 +21,8 @@ readLine prompt = do
             then pure pos
             else putLn >> pure (Position (row pos + 1) 0)
     evalStateT (putReadLineState >> run) ReadLineState
-        { rlWindow        = window
+        { rlConfig        = defaultConfig
+        , rlWindow        = window
         , rlPosition      = cursor
         , rlPrompt        = layoutSmart defaultLayoutOptions (prompt <> space)
         , rlInputString   = ""
@@ -75,7 +76,7 @@ run = lift awaitEvent >>= \case
         quit = do
             st <- get
             case readText (T.pack $ rlInputString st) of
-                Left failure -> undefined -- FIXME
+                Left _       -> run
                 Right result -> quitWith (Just result)
         quitWith result = do
             st <- get
@@ -89,9 +90,20 @@ run = lift awaitEvent >>= \case
 -- READLINE STATE
 ---------------------------------------------------------------------------------------------------
 
+data ReadLineConfig
+    = ReadLineConfig
+    { maxInputLength :: Int
+    } deriving (Eq, Ord, Show)
+
+defaultConfig :: ReadLineConfig
+defaultConfig = ReadLineConfig
+    { maxInputLength = 4096
+    }
+
 data ReadLineState m
     = ReadLineState 
-    { rlWindow        :: Size
+    { rlConfig        :: ReadLineConfig
+    , rlWindow        :: Size
     , rlPosition      :: Position
     , rlPrompt        :: SimpleDocStream (Attribute m)
     , rlInputString   :: String
@@ -112,38 +124,9 @@ rlInputEndPosition st = posInputEnd
         posInputBegin   = rlInputBeginPosition st
         posInputEnd     = posPlus size posInputBegin $ length $ rlInputString st
 
-putReadLineStateDiff :: MonadTerminal m => ReadLineState m -> StateT (ReadLineState m) m ()
-putReadLineStateDiff newSt = do
-    put newSt
-    putReadLineState -- TODO
-
-putReadLineState :: MonadTerminal m => StateT (ReadLineState m) m ()
-putReadLineState = do
-    st <- get
-    let size            = rlWindow st
-        pos             = rlPosition st
-        posInputStart   = posPlusSimpleDocStream size pos (rlPrompt st)
-        posInputEnd     = posPlus size posInputStart (length $ rlInputString st)
-        posInputCursor  = posPlus size posInputStart (rlInputCursor st)
-        scrolled        = height size <= row posInputEnd
-        pos'
-            | scrolled  = posPlusRows size pos (-1)
-            | otherwise = pos
-        posInputCursor'
-            | scrolled  = posPlusRows size posInputCursor (-1)
-            | otherwise = posInputCursor
-    lift do
-        hideCursor
-        setCursorPosition pos
-        eraseInLine EraseAll
-        eraseInDisplay EraseForward
-        putSimpleDocStream (rlPrompt st)
-        putString (rlInputString st)
-        putChar ' ' -- overcome auto-wrap laziness
-        showCursor
-        setCursorPosition posInputCursor'
-        flush
-    put st { rlPosition = pos' }
+---------------------------------------------------------------------------------------------------
+-- STATE MANIPULATION
+---------------------------------------------------------------------------------------------------
 
 clear :: MonadTerminal m => StateT (ReadLineState m) m ()
 clear = do
@@ -157,12 +140,18 @@ insertChar c = do
     st <- get
     let insertAt :: Char -> Int -> String -> String
         insertAt x 0 ys     = x : ys
-        insertAt x _ []     = []
+        insertAt _ _ []     = []
         insertAt x i (y:ys) = y : insertAt x (i - 1) ys
-    putReadLineStateDiff st
-        { rlInputString = insertAt c (rlInputCursor st) (rlInputString st)
-        , rlInputCursor = rlInputCursor st + 1
-        }
+        input               = insertAt c (rlInputCursor st) (rlInputString st)
+        inputCursor         = rlInputCursor st + 1
+    -- It is a security risk to have an unbounded input buffer.
+    -- Thus, characters are just ignored when a specified maximum
+    -- capacity is exceeded.
+    when (length input <= maxInputLength (rlConfig st)) $
+        putReadLineStateDiff st
+            { rlInputString = input
+            , rlInputCursor = inputCursor
+            }
 
 delete ::  MonadTerminal m => StateT (ReadLineState m) m ()
 delete = do
@@ -202,7 +191,7 @@ moveLeftWord = do
             | i + 1 >= c = l
             | x /= ' '   = f (i + 2) (i + 1) xs
             | otherwise  = f (i + 2)  l      xs
-        f i l (x:xs)
+        f i l (_:xs)
             | i >= c     = l
             | otherwise  = f (i + 1)  l      xs
     putReadLineStateDiff st
@@ -221,14 +210,14 @@ moveRightWord = do
     st <- get
     let c  = rlInputCursor st
         xs = rlInputString st
-        f c [] = c
-        f c (x:xs)
-            | x == ' '  = g (c + 1) xs
-            | otherwise = f (c + 1) xs
-        g c [] = c
-        g c (x:xs)
-            | x == ' '  = g (c + 1) xs
-            | otherwise = c
+        f i [] = i
+        f i (y:ys)
+            | y == ' '  = g (i + 1) ys
+            | otherwise = f (i + 1) ys
+        g i [] = i
+        g i (y:ys)
+            | y == ' '  = g (i + 1) ys
+            | otherwise = i
     putReadLineStateDiff st
         { rlInputCursor = f c (drop c xs)
         }
@@ -248,6 +237,67 @@ moveToLineEnd = do
         }
 
 ---------------------------------------------------------------------------------------------------
+-- RENDERING
+---------------------------------------------------------------------------------------------------
+
+putReadLineState :: MonadTerminal m => StateT (ReadLineState m) m ()
+putReadLineState = do
+    st <- get
+    let size            = rlWindow st
+        pos             = rlPosition st
+        posInputStart   = posPlusSimpleDocStream size pos (rlPrompt st)
+        posInputEnd     = posPlus size posInputStart (length $ rlInputString st)
+        posInputCursor  = posPlus size posInputStart (rlInputCursor st)
+        scrolled        = height size <= row posInputEnd
+        pos'
+            | scrolled  = posPlusRows size pos (-1)
+            | otherwise = pos
+        posInputCursor'
+            | scrolled  = posPlusRows size posInputCursor (-1)
+            | otherwise = posInputCursor
+        {-input           = rlInputString st
+        cursor          = rlInputCursor st
+        -- Available cells from home position (if prompt would scroll)
+        inputPosHome    = posPlusSimpleDocStream size (Position 0 0) (rlPrompt st)
+        inputAvailable  = (height size - row inputPosHome) * width size - col inputPosHome
+        (inputRendered, cursorRendered)
+            | input < inputAvailable = (input, cursor)
+            | otherwise              = (take m $ drop n input, cursor - n)
+            where
+                -- ____________ABCDEF_HIJKLMN___________
+                --      m     |      n      |
+                l = length input
+                m = min (l - inputAvailable) (cursor - (inputAvailable `div` 2)) -}
+    lift do
+        hideCursor
+        setCursorPosition pos
+        eraseInLine EraseAll
+        eraseInDisplay EraseForward
+        putSimpleDocStream (rlPrompt st)
+        putString (rlInputString st)
+        putChar ' ' -- overcome auto-wrap laziness
+        showCursor
+        setCursorPosition posInputCursor'
+        flush
+    put st { rlPosition = pos' }
+
+putReadLineStateDiff :: (MonadTerminal m) => ReadLineState m -> StateT (ReadLineState m) m ()
+putReadLineStateDiff = \st1 -> get >>= \st0 -> do
+    if isTooDifficultToRenderDifference st0 st1
+        then renderFromScratch st1
+        else renderDifference st0 st1
+    where
+        isTooDifficultToRenderDifference st0 st1 = True || -- TODO
+            rlWindow   st0 /= rlWindow    st1 ||
+            rlPosition st0 /= rlPosition  st1 ||
+            rlPrompt   st0 /= rlPrompt    st1
+        renderFromScratch st1 = do
+            put st1
+            putReadLineState
+        renderDifference st0 st1 = lift do
+            undefined -- TODO
+
+---------------------------------------------------------------------------------------------------
 -- POSITION CALCULATIONS
 ---------------------------------------------------------------------------------------------------
 
@@ -257,7 +307,7 @@ posPlus size pos i = Position r c
         (r,c) = quotRem (row pos * width size + col pos + i) (width size)
 
 posPlusRows :: Size -> Position -> Int -> Position
-posPlusRows size (Position r c) i =
+posPlusRows _ (Position r c) i =
     Position (r + i) c
 
 posPlusText :: Size -> Position -> T.Text -> Position

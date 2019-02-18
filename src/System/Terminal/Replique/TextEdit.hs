@@ -3,6 +3,26 @@ module System.Terminal.Replique.TextEdit where
 
 import System.Terminal
 
+render :: Int -> (String, Int) -> (String, Int)
+render a1 (s1, c1)
+    | a1 >= l1       = (s1, c1) -- Case 1: Uncut
+    | c1 < a2        = (s2, c2) -- Case 2: Cut right (ABC ..)
+    | (l1- c1) <= a3 = (s3, c3) -- Case 3: Cut left (.. ABC)
+    | otherwise      = (s4, c4) -- Case 4: Cut both (.. ABC ..)
+    where
+        bl = ".. "
+        br = " .."
+        l1 = length s1
+        a2 = a1 - length br
+        c2 = c1
+        s2 = take a2 s1 ++ br
+        a3 = a1 - length bl
+        c3 = a1 - l1 + c1
+        s3 = bl ++ drop (l1 - a1 + length bl) s1
+        a4 = a1 - length bl - length br
+        c4 = length bl + (a4 `div` 2)
+        s4 = bl ++ take a4 (drop (c1 - (a4 `div` 2)) s1) ++ br
+
 putDiff :: forall m. MonadScreen m => Size -> Position -> String -> String -> m Position
 putDiff size pos0 old new 
     -- Old is longer: deletion is required

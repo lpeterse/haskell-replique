@@ -113,6 +113,9 @@ instance (MonadCatch m, MonadTerminal m) => MonadMarkupPrinter (RepliqueT e s m)
     resetAttributes                  = interruptible $ lift  resetAttributes
     resetsAttribute (Attribute' a) (Attribute' b) = resetsAttribute a b
 
+instance Eq (Attribute m) => Eq (Attribute (RepliqueT e s m)) where
+    Attribute' a == Attribute' b = a == b
+
 instance (MonadCatch m, MonadTerminal m) => MonadFormattingPrinter (RepliqueT e s m) where
     bold       = Attribute' bold
     italic     = Attribute' italic
