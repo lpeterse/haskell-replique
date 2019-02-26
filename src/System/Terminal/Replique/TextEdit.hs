@@ -4,7 +4,7 @@ module System.Terminal.Replique.TextEdit where
 import System.Terminal
 
 render :: Int -> (String, Int) -> (String, Int)
-render a1 (s1, c1)
+render a (s, c)
     | a1 >= l1       = (s1, c1) -- Case 1: Uncut
     | c1 < a2        = (s2, c2) -- Case 2: Cut right (ABC ..)
     | (l1- c1) <= a3 = (s3, c3) -- Case 3: Cut left (.. ABC)
@@ -12,7 +12,11 @@ render a1 (s1, c1)
     where
         bl = ".. "
         br = " .."
-        l1 = length s1
+        l  = length s
+        l1 = if c < l then l else l + 1
+        a1 = a
+        c1 = c
+        s1 = if c < l then s else s ++ " "
         a2 = a1 - length br
         c2 = c1
         s2 = take a2 s1 ++ br

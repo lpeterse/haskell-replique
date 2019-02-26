@@ -25,6 +25,8 @@ tests = testGroup "TextEdit"
     , testRender05
     , testRender06
     , testRender07
+    , testRender08
+    , testRender09
     ]
   , testGroup "diff"
     [ testDiff01
@@ -53,28 +55,36 @@ testRender01 = testCase "shall return unmodified when enough space available" do
     assertEqual "" ("0123456789", 5) $ render 10 ("0123456789", 5)
 
 testRender02 :: TestTree
-testRender02 = testCase "shall cut right when cursor is near left margin" do
+testRender02 = testCase "shall truncate right when cursor is near left margin" do
     assertEqual "" ("01 ..", 1) $ render 5 ("0123456789", 1)
 
 testRender03 :: TestTree
-testRender03 = testCase "shall cut left when cursor is near right margin" do
+testRender03 = testCase "shall truncate left when cursor is near right margin" do
     assertEqual "" (".. CDEF", 3) $ render 7 ("0123456789ABCDEF", 12)
 
 testRender04 :: TestTree
-testRender04 = testCase "shall cut both when cursor is not close enough to the left" do
+testRender04 = testCase "shall truncate both when cursor is not close enough to the left" do
     assertEqual "" (".. 4 ..", 3) $ render 7 ("0123456789ABCDEF", 4)
 
 testRender05 :: TestTree
-testRender05 = testCase "shall cut both when cursor is not close enough to the right" do
+testRender05 = testCase "shall truncate both when cursor is not close enough to the right" do
     assertEqual "" (".. B ..", 3) $ render 7 ("0123456789ABCDEF", 11)
 
 testRender06 :: TestTree
-testRender06 = testCase "shall cut both when cursor is centered (available is odd)" do
+testRender06 = testCase "shall truncate both when cursor is centered (available is odd)" do
     assertEqual "" (".. 678 ..", 4) $ render 9 ("0123456789ABCDEF", 7)
 
 testRender07 :: TestTree
-testRender07 = testCase "shall cut both when cursor is centered (available is even)" do
+testRender07 = testCase "shall truncate both when cursor is centered (available is even)" do
     assertEqual "" (".. 5678 ..", 5) $ render 10 ("0123456789ABCDEF", 7)
+
+testRender08 :: TestTree
+testRender08 = testCase "shall add extra whitespace when cursor is on mostright position" do
+    assertEqual "" ("0123456789 ", 10) $ render 11 ("0123456789", 10)
+
+testRender09 :: TestTree
+testRender09 = testCase "shall return whitespace when string is empty" do
+    assertEqual "" (" ", 0) $ render 10 ("", 0)
 
 testDiff01 :: TestTree
 testDiff01 = testCase "empty strings" do

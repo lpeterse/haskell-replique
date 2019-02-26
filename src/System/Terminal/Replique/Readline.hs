@@ -254,9 +254,9 @@ putReadLineState = do
         (inputS, inputC) = render inputAvailable (rlInputString st, rlInputCursor st)
         -- Positions before and after printing input.
         posInputStart    = posPlusSimpleDocStream size pos (rlPrompt st)
-        posInputEnd      = posPlus size posInputStart (length inputS + 1)
+        posInputEnd      = posPlus size posInputStart (length inputS)
         posInputCursor   = posPlus size posInputStart inputC
-        linesScrolled    = max 0 (row posInputEnd - height size - 1)
+        linesScrolled    = max 0 (row posInputEnd - height size + 1)
         pos'             = pos            `scroll` linesScrolled
         posInputCursor'  = posInputCursor `scroll` linesScrolled
     lift do
@@ -267,7 +267,6 @@ putReadLineState = do
         eraseInDisplay EraseForward
         putSimpleDocStream (rlPrompt st)
         putString inputS
-        putChar ' ' -- overcome auto-wrap laziness
         showCursor
         setCursorPosition posInputCursor'
         flush
